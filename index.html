@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0a0e0d">
+<title>Sentry — Motion Alert</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Inter:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0e0d;
+    --panel:#101614;
+    --panel-line:#22302b;
+    --ink:#cfd8c9;
+    --ink-dim:#7c9186;
+    --green:#39d98a;
+    --green-dim:#1d5c3f;
+    --red:#eb5742;
+    --red-dim:#5c231b;
+    --amber:#e8b04b;
+    --mono: 'IBM Plex Mono', ui-monospace, monospace;
+    --sans: 'Inter', system-ui, sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:var(--sans);
+    min-height:100dvh;
+    padding-top:env(safe-area-inset-top);
+    padding-bottom:env(safe-area-inset-bottom);
+    background-image:
+      radial-gradient(ellipse at top, rgba(57,217,138,0.05), transparent 60%),
+      repeating-linear-gradient(0deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+  }
+  .wrap{max-width:520px; margin:0 auto; padding:18px 16px 40px;}
+
+  header{display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;}
+  .brand{display:flex; align-items:center; gap:10px;}
+  .brand-mark{width:30px; height:30px; position:relative; flex:none;}
+  .brand-mark svg{width:100%; height:100%;}
+  .brand-text{font-family:var(--mono); font-weight:700; font-size:15px; letter-spacing:0.14em; text-transform:uppercase; color:var(--ink);}
+  .brand-sub{font-family:var(--mono); font-size:10px; letter-spacing:0.12em; color:var(--ink-dim); margin-top:1px;}
+
+  #installBtn{
+    font-family:var(--mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    background:transparent; color:var(--green); border:1px solid var(--green-dim);
+    padding:7px 10px; border-radius:4px; cursor:pointer; display:none;
+  }
+
+  /* mode toggle - physical switch feel */
+  .switch{
+    display:flex; background:var(--panel); border:1px solid var(--panel-line); border-radius:8px;
+    padding:4px; margin-bottom:16px; gap:4px;
+  }
+  .switch button{
+    flex:1; padding:11px 8px; background:transparent; border:none; border-radius:5px;
+    font-family:var(--mono); font-size:12px; letter-spacing:.1em; text-transform:uppercase;
+    color:var(--ink-dim); cursor:pointer; transition:background .15s, color .15s;
+  }
+  .switch button.active{background:#1a2420; color:var(--green);}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--panel-line); border-radius:10px;
+    padding:16px; margin-bottom:14px;
+  }
+  .panel h2{
+    font-family:var(--mono); font-size:10px; letter-spacing:.14em; text-transform:uppercase;
+    color:var(--ink-dim); margin:0 0 12px; display:flex; align-items:center; gap:8px;
+  }
+  .panel h2::after{content:''; flex:1; height:1px; background:var(--panel-line);}
+
+  /* viewfinder */
+  .viewfinder{
+    position:relative; width:100%; aspect-ratio:4/3; background:#000;
+    border-radius:8px; overflow:hidden; margin-bottom:12px; border:1px solid var(--panel-line);
+  }
+  .viewfinder video{width:100%; height:100%; object-fit:cover; display:block;}
+  .viewfinder .empty{
+    position:absolute; inset:0; display:flex; align-items:center; justify-content:center;
+    font-family:var(--mono); font-size:11px; color:var(--ink-dim); text-align:center; padding:20px;
+    letter-spacing:.05em;
+  }
+  .reticle{position:absolute; inset:14px; pointer-events:none;}
+  .reticle span{position:absolute; width:22px; height:22px; border:2px solid rgba(57,217,138,.75);}
+  .reticle span.tl{top:0; left:0; border-right:none; border-bottom:none;}
+  .reticle span.tr{top:0; right:0; border-left:none; border-bottom:none;}
+  .reticle span.bl{bottom:0; left:0; border-right:none; border-top:none;}
+  .reticle span.br{bottom:0; right:0; border-left:none; border-top:none;}
+  .reticle.alarm span{border-color:var(--red);}
+
+  .overlay-row{
+    position:absolute; left:10px; right:10px; bottom:8px; display:flex; justify-content:space-between; align-items:flex-end;
+    font-family:var(--mono); font-size:10px; color:rgba(207,216,201,.85); letter-spacing:.05em; pointer-events:none;
+  }
+  .rec-dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--red); margin-right:5px; animation:pulse 1.4s infinite;}
+  @keyframes pulse{0%,100%{opacity:1;} 50%{opacity:.25;}}
+
+  .status-bar{
+    display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;
+    font-family:var(--mono);
+  }
+  .status-lamp{display:flex; align-items:center; gap:8px; font-size:12px; letter-spacing:.08em; text-transform:uppercase;}
+  .lamp{width:9px; height:9px; border-radius:50%; background:var(--ink-dim); flex:none;}
+  .lamp.armed{background:var(--green); box-shadow:0 0 8px var(--green);}
+  .lamp.alarm{background:var(--red); box-shadow:0 0 10px var(--red); animation:pulse .6s infinite;}
+  .lamp.live{background:var(--green); box-shadow:0 0 8px var(--green);}
+  .lamp.off{background:var(--ink-dim);}
+
+  .btn{
+    width:100%; padding:14px; border-radius:8px; border:1px solid var(--panel-line);
+    font-family:var(--mono); font-size:13px; letter-spacing:.1em; text-transform:uppercase;
+    cursor:pointer; transition:filter .12s, transform .05s; background:#161f1b; color:var(--ink);
+  }
+  .btn:active{transform:scale(.985);}
+  .btn.primary{background:var(--green); color:#06110c; border-color:var(--green); font-weight:600;}
+  .btn.danger{background:var(--red); color:#1c0705; border-color:var(--red); font-weight:600;}
+  .btn.ghost{background:transparent;}
+  .btn.small{padding:10px; font-size:11px; width:auto;}
+  .btn[disabled]{opacity:.4; pointer-events:none;}
+  .row{display:flex; gap:8px;}
+  .row .btn{flex:1;}
+
+  label.field{display:block; margin-bottom:14px;}
+  label.field:last-child{margin-bottom:0;}
+  .field-top{display:flex; justify-content:space-between; align-items:baseline; margin-bottom:6px;}
+  .field-label{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim);}
+  .field-value{font-family:var(--mono); font-size:11px; color:var(--green);}
+  input[type=text]{
+    width:100%; background:#0d1310; border:1px solid var(--panel-line); border-radius:6px;
+    padding:11px 10px; color:var(--ink); font-family:var(--mono); font-size:13px;
+  }
+  input[type=text]:focus{outline:none; border-color:var(--green-dim);}
+  input[type=range]{width:100%; accent-color:var(--green);}
+  .hint{font-family:var(--mono); font-size:10px; color:var(--ink-dim); margin-top:6px; line-height:1.5;}
+
+  .log{max-height:160px; overflow-y:auto; font-family:var(--mono); font-size:11px;}
+  .log-entry{display:flex; gap:8px; padding:6px 0; border-bottom:1px solid var(--panel-line); color:var(--ink-dim);}
+  .log-entry:last-child{border-bottom:none;}
+  .log-entry .t{color:var(--ink-dim); flex:none;}
+  .log-entry .m{color:var(--ink);}
+  .log-entry.alert .m{color:var(--red);}
+  .log-empty{font-family:var(--mono); font-size:11px; color:var(--ink-dim); padding:10px 0; text-align:center;}
+
+  .flash{position:fixed; inset:0; background:var(--red); opacity:0; pointer-events:none; z-index:50; transition:opacity .08s;}
+  .flash.on{opacity:.35;}
+
+  ::-webkit-scrollbar{width:5px;}
+  ::-webkit-scrollbar-thumb{background:var(--panel-line); border-radius:3px;}
+</style>
+</head>
+<body>
+<div class="flash" id="flash"></div>
+<div class="wrap">
+
+  <header>
+    <div class="brand">
+      <div class="brand-mark">
+        <svg viewBox="0 0 100 100" fill="none">
+          <path d="M20 34V20h14M80 34V20H66M20 66v14h14M80 66v14H66" stroke="#39d98a" stroke-width="7"/>
+          <circle cx="50" cy="50" r="8" fill="#eb5742"/>
+        </svg>
+      </div>
+      <div>
+        <div class="brand-text">Sentry</div>
+        <div class="brand-sub">motion&nbsp;relay</div>
+      </div>
+    </div>
+    <button id="installBtn">Install</button>
+  </header>
+
+  <div class="switch">
+    <button id="tabWatch" class="active">Watch</button>
+    <button id="tabReceive">Receive</button>
+  </div>
+
+  <!-- ================= WATCH MODE ================= -->
+  <div id="watchView">
+
+    <div class="panel">
+      <h2>Camera</h2>
+      <div class="viewfinder" id="vfWatch">
+        <div class="empty" id="watchEmpty">Tap "Start Watching" to<br>arm the camera</div>
+        <video id="video" autoplay playsinline muted></video>
+        <div class="reticle" id="reticle" style="display:none;">
+          <span class="tl"></span><span class="tr"></span><span class="bl"></span><span class="br"></span>
+        </div>
+        <div class="overlay-row" id="overlayRow" style="display:none;">
+          <span><span class="rec-dot"></span>LIVE</span>
+          <span id="clock">--:--:--</span>
+        </div>
+      </div>
+
+      <div class="status-bar">
+        <div class="status-lamp"><span class="lamp off" id="watchLamp"></span><span id="watchStatus">STOPPED</span></div>
+        <span style="font-family:var(--mono); font-size:11px; color:var(--ink-dim);" id="watchSub">—</span>
+      </div>
+
+      <button class="btn primary" id="watchToggle">Start Watching</button>
+    </div>
+
+    <div class="panel">
+      <h2>Sensitivity</h2>
+      <label class="field">
+        <div class="field-top"><span class="field-label">Trigger threshold</span><span class="field-value" id="sensVal">15%</span></div>
+        <input type="range" id="sens" min="3" max="50" value="15">
+        <div class="hint">Percent of the frame that must change to count as motion. Lower = triggers on smaller movements. Start around 15% and adjust after a test.</div>
+      </label>
+      <label class="field">
+        <div class="field-top"><span class="field-label">Cooldown between alerts</span><span class="field-value" id="cooldownVal">15s</span></div>
+        <input type="range" id="cooldown" min="3" max="60" value="15">
+      </label>
+    </div>
+
+    <div class="panel">
+      <h2>Shared Topic</h2>
+      <label class="field">
+        <div class="field-top"><span class="field-label">Topic name (must match receiver)</span></div>
+        <input type="text" id="topicWatch" placeholder="e.g. garage-cam-7fk2">
+        <div class="hint">This is your private channel name on the free ntfy.sh relay. Use something long and hard to guess — anyone who knows it can see or send alerts on it.</div>
+      </label>
+      <div class="row" style="margin-top:4px;">
+        <button class="btn ghost small" id="testAlert">Send Test Alert</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Sent Alerts</h2>
+      <div class="log" id="watchLog"><div class="log-empty">No alerts sent yet</div></div>
+    </div>
+  </div>
+
+  <!-- ================= RECEIVE MODE ================= -->
+  <div id="receiveView" style="display:none;">
+
+    <div class="panel">
+      <h2>Listening Status</h2>
+      <div class="status-bar">
+        <div class="status-lamp"><span class="lamp off" id="recvLamp"></span><span id="recvStatus">NOT LISTENING</span></div>
+      </div>
+      <button class="btn primary" id="recvToggle">Subscribe</button>
+    </div>
+
+    <div class="panel">
+      <h2>Shared Topic</h2>
+      <label class="field">
+        <div class="field-top"><span class="field-label">Topic name (must match watcher)</span></div>
+        <input type="text" id="topicRecv" placeholder="e.g. garage-cam-7fk2">
+      </label>
+    </div>
+
+    <div class="panel">
+      <h2>Reliability</h2>
+      <div class="hint" style="font-size:11px; line-height:1.6;">
+        This page can alert you with sound + a notification while it's open (in the foreground or a background tab). For alerts to arrive even when this app is fully closed or the phone is locked, install the free <strong style="color:var(--ink);">ntfy</strong> app (App Store / Play Store) on this phone and subscribe to the exact same topic there — it delivers true background push.
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Received Alerts</h2>
+      <div class="log" id="recvLog"><div class="log-empty">No alerts received yet</div></div>
+    </div>
+  </div>
+
+  <div class="hint" style="text-align:center; margin-top:6px;">Sentry runs entirely in your browser. Alerts relay through the free ntfy.sh service — no account, no server to run.</div>
+</div>
+
+<script>
+/* ---------- shared helpers ---------- */
+const $ = id => document.getElementById(id);
+const pad2 = n => String(n).padStart(2,'0');
+const timeNow = () => { const d=new Date(); return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`; };
+const flashEl = $('flash');
+function doFlash(){ flashEl.classList.add('on'); setTimeout(()=>flashEl.classList.remove('on'), 220); }
+
+function beep(pattern){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    let t = ctx.currentTime;
+    pattern.forEach(([freq,dur])=>{
+      const o = ctx.createOscillator(); const g = ctx.createGain();
+      o.type='square'; o.frequency.value=freq;
+      g.gain.setValueAtTime(0.0001,t); g.gain.exponentialRampToValueAtTime(0.25,t+0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t); o.stop(t+dur+0.02);
+      t += dur+0.06;
+    });
+  }catch(e){}
+}
+function alarmSound(){ beep([[880,0.14],[660,0.14],[880,0.14]]); }
+function testSound(){ beep([[520,0.12]]); }
+
+function addLog(container, msg, isAlert){
+  const empty = container.querySelector('.log-empty');
+  if(empty) empty.remove();
+  const row = document.createElement('div');
+  row.className = 'log-entry' + (isAlert?' alert':'');
+  row.innerHTML = `<span class="t">${timeNow()}</span><span class="m">${msg}</span>`;
+  container.prepend(row);
+  while(container.children.length > 30) container.removeChild(container.lastChild);
+}
+
+function loadTopic(){ return localStorage.getItem('sentry_topic') || ''; }
+function saveTopic(v){ localStorage.setItem('sentry_topic', v); }
+
+const topicWatch = $('topicWatch'), topicRecv = $('topicRecv');
+const savedTopic = loadTopic();
+topicWatch.value = savedTopic; topicRecv.value = savedTopic;
+[topicWatch, topicRecv].forEach(inp=>{
+  inp.addEventListener('input', ()=>{
+    saveTopic(inp.value.trim());
+    topicWatch.value = inp.value; topicRecv.value = inp.value;
+  });
+});
+
+function currentTopic(){
+  const t = loadTopic().trim();
+  return t.replace(/[^a-zA-Z0-9_\-\.]/g,'');
+}
+
+async function sendNtfy(message, {title='Motion Detected', priority='urgent', tags='rotating_light'}={}){
+  const topic = currentTopic();
+  if(!topic) throw new Error('no topic set');
+  const res = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}`, {
+    method:'POST',
+    headers:{ 'Title': title, 'Priority': priority, 'Tags': tags },
+    body: message
+  });
+  if(!res.ok) throw new Error('relay error '+res.status);
+}
+
+/* ---------- mode switch ---------- */
+const tabWatch=$('tabWatch'), tabReceive=$('tabReceive'), watchView=$('watchView'), receiveView=$('receiveView');
+tabWatch.onclick = ()=>{ tabWatch.classList.add('active'); tabReceive.classList.remove('active'); watchView.style.display='block'; receiveView.style.display='none'; };
+tabReceive.onclick = ()=>{ tabReceive.classList.add('active'); tabWatch.classList.remove('active'); receiveView.style.display='block'; watchView.style.display='none'; };
+
+/* ================= WATCH LOGIC ================= */
+const video=$('video'), watchLamp=$('watchLamp'), watchStatus=$('watchStatus'), watchSub=$('watchSub');
+const watchToggle=$('watchToggle'), watchEmpty=$('watchEmpty'), reticle=$('reticle'), overlayRow=$('overlayRow'), clockEl=$('clock');
+const sens=$('sens'), sensVal=$('sensVal'), cooldown=$('cooldown'), cooldownVal=$('cooldownVal');
+const watchLog=$('watchLog');
+
+sens.oninput = ()=> sensVal.textContent = sens.value+'%';
+cooldown.oninput = ()=> cooldownVal.textContent = cooldown.value+'s';
+
+let stream=null, watching=false, detectTimer=null, clockTimer=null, prevFrame=null, cooldownUntil=0;
+const dCanvas = document.createElement('canvas');
+const DW=96, DH=72;
+dCanvas.width=DW; dCanvas.height=DH;
+const dctx = dCanvas.getContext('2d', {willReadFrequently:true});
+
+async function startWatching(){
+  if(!currentTopic()){ addLog(watchLog,'Set a topic name first',true); tabWatch.click(); topicWatch.focus(); return; }
+  try{
+    stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'environment' }, audio:false });
+  }catch(e){
+    addLog(watchLog,'Camera permission denied or unavailable',true);
+    return;
+  }
+  video.srcObject = stream;
+  watchEmpty.style.display='none';
+  reticle.style.display='block';
+  overlayRow.style.display='flex';
+  watching=true; prevFrame=null;
+  watchLamp.className='lamp armed'; watchStatus.textContent='ARMED'; watchSub.textContent='scanning…';
+  watchToggle.textContent='Stop Watching'; watchToggle.classList.remove('primary'); watchToggle.classList.add('danger');
+
+  clockTimer = setInterval(()=> clockEl.textContent=timeNow(), 1000);
+  detectTimer = setInterval(detectFrame, 350);
+}
+
+function stopWatching(){
+  watching=false;
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  clearInterval(detectTimer); clearInterval(clockTimer);
+  video.srcObject=null;
+  watchEmpty.style.display='flex';
+  reticle.style.display='none'; reticle.classList.remove('alarm');
+  overlayRow.style.display='none';
+  watchLamp.className='lamp off'; watchStatus.textContent='STOPPED'; watchSub.textContent='—';
+  watchToggle.textContent='Start Watching'; watchToggle.classList.add('primary'); watchToggle.classList.remove('danger');
+}
+
+watchToggle.onclick = ()=> watching ? stopWatching() : startWatching();
+
+function detectFrame(){
+  if(!watching || video.readyState < 2) return;
+  dctx.drawImage(video,0,0,DW,DH);
+  const frame = dctx.getImageData(0,0,DW,DH).data;
+  if(prevFrame){
+    let changed=0;
+    const pixelThresh = 28;
+    for(let i=0;i<frame.length;i+=4){
+      const diff = Math.abs(frame[i]-prevFrame[i]) + Math.abs(frame[i+1]-prevFrame[i+1]) + Math.abs(frame[i+2]-prevFrame[i+2]);
+      if(diff/3 > pixelThresh) changed++;
+    }
+    const pct = (changed/(frame.length/4))*100;
+    watchSub.textContent = pct.toFixed(1)+'% moved';
+    if(pct > parseFloat(sens.value) && Date.now() > cooldownUntil){
+      onMotion(pct);
+    }
+  }
+  prevFrame = frame;
+}
+
+async function onMotion(pct){
+  cooldownUntil = Date.now() + (parseInt(cooldown.value,10)*1000);
+  reticle.classList.add('alarm');
+  watchLamp.className='lamp alarm'; watchStatus.textContent='MOTION';
+  setTimeout(()=>{ if(watching){ reticle.classList.remove('alarm'); watchLamp.className='lamp armed'; watchStatus.textContent='ARMED'; } }, 1400);
+  addLog(watchLog, `Motion (${pct.toFixed(1)}%) — sending alert…`, true);
+  try{
+    await sendNtfy(`Motion detected at ${timeNow()}`);
+    addLog(watchLog, 'Alert sent ✓', false);
+  }catch(e){
+    addLog(watchLog, 'Failed to send: '+e.message, true);
+  }
+}
+
+$('testAlert').onclick = async ()=>{
+  if(!currentTopic()){ addLog(watchLog,'Set a topic name first',true); return; }
+  addLog(watchLog,'Sending test alert…',false);
+  try{
+    await sendNtfy(`Test alert from Sentry at ${timeNow()}`, {title:'Sentry Test', priority:'default', tags:'test_tube'});
+    addLog(watchLog,'Test alert sent ✓',false);
+  }catch(e){ addLog(watchLog,'Failed: '+e.message,true); }
+};
+
+/* ================= RECEIVE LOGIC ================= */
+const recvLamp=$('recvLamp'), recvStatus=$('recvStatus'), recvToggle=$('recvToggle'), recvLog=$('recvLog');
+let es=null, listening=false;
+
+function startListening(){
+  const topic = currentTopic();
+  if(!topic){ addLog(recvLog,'Set a topic name first',true); topicRecv.focus(); return; }
+  if(Notification && Notification.permission==='default'){ Notification.requestPermission(); }
+  es = new EventSource(`https://ntfy.sh/${encodeURIComponent(topic)}/sse`);
+  es.onopen = ()=>{
+    listening=true;
+    recvLamp.className='lamp live'; recvStatus.textContent='LISTENING';
+    recvToggle.textContent='Unsubscribe'; recvToggle.classList.remove('primary'); recvToggle.classList.add('danger');
+  };
+  es.onerror = ()=>{
+    recvLamp.className='lamp off'; recvStatus.textContent='RECONNECTING…';
+  };
+  es.onmessage = (e)=>{
+    try{
+      const data = JSON.parse(e.data);
+      if(data.event==='message'){
+        addLog(recvLog, data.message || 'Motion alert', true);
+        alarmSound();
+        if(navigator.vibrate) navigator.vibrate([200,100,200,100,400]);
+        doFlash();
+        if(Notification && Notification.permission==='granted'){
+          new Notification(data.title || 'Motion Detected', { body:data.message||'', icon:'icon-192.png' });
+        }
+      }
+    }catch(err){}
+  };
+}
+
+function stopListening(){
+  if(es){ es.close(); es=null; }
+  listening=false;
+  recvLamp.className='lamp off'; recvStatus.textContent='NOT LISTENING';
+  recvToggle.textContent='Subscribe'; recvToggle.classList.add('primary'); recvToggle.classList.remove('danger');
+}
+
+recvToggle.onclick = ()=> listening ? stopListening() : startListening();
+
+/* ---------- PWA install prompt ---------- */
+let deferredPrompt=null;
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault(); deferredPrompt=e; $('installBtn').style.display='inline-block';
+});
+$('installBtn').onclick = async ()=>{
+  if(!deferredPrompt) return;
+  deferredPrompt.prompt();
+  await deferredPrompt.userChoice;
+  deferredPrompt=null; $('installBtn').style.display='none';
+};
+
+/* ---------- service worker ---------- */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
